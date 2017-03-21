@@ -2,9 +2,12 @@ package babble.dialog.androidapp;
 
 import babble.dialog.remote.Client;
 import babble.dialog.remote.ClientDisconnectedException;
+import babble.dialog.remote.ClientResponse;
 
 import java.util.ArrayList;
+import java.util.Locale;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.app.Activity;
 
@@ -14,6 +17,8 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.os.StrictMode;
+import android.speech.tts.TextToSpeech;
+import android.support.annotation.RequiresApi;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.style.StyleSpan;
@@ -27,45 +32,51 @@ public class MainActivity extends Activity {
     private static final int REQUEST_CODE = 1234;
     public Activity currentView;
     Button Start;
-    public TextView Speech, System;
+    public TextView Speech, System,sysspeech;
     SpeechRecognizer babbleRecognizer;
     Intent babbleIntent;
     Client c;
+    TextToSpeech utterance;
     private ArrayList<String> aggregated_utterances = new ArrayList<String>();
+    public boolean isTTSready = false;
 
-    public void buildToSpeech(ArrayList<String> content, boolean isUser)    {
+    public void speak(String spokenLine) {
+        if (isTTSready) {
+            if(Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                utterance.speak(spokenLine, TextToSpeech.QUEUE_FLUSH, null, null);
+            } else {
+                utterance.speak(spokenLine, TextToSpeech.QUEUE_FLUSH, null);
+            }
+        }
+    }
+
+    public void buildToSpeech(ArrayList<String> content, String agent)    {
         String aggregatedUtterances = "";
 
         for(String str: content){
-            if(str != "")
+            if(!str.equals(""))
                 aggregatedUtterances += str + " ";
         }
 
-        if(aggregatedUtterances != "") {
-            //Log.v("AggUtt", content.toString());
-            Log.v("AggUtt", aggregatedUtterances);
-            // a SpannableStringBuilder containing text to display
-            SpannableStringBuilder sb = new SpannableStringBuilder("User: " + aggregatedUtterances.substring(0, aggregatedUtterances.length() - 1));
+        if(!aggregatedUtterances.equals("")) {
+            SpannableStringBuilder sb = new SpannableStringBuilder(agent + ": " + aggregatedUtterances.substring(0, aggregatedUtterances.length() - 1));
 
             // create a bold StyleSpan to be used on the SpannableStringBuilder
             StyleSpan b = new StyleSpan(android.graphics.Typeface.BOLD);
 
             // set only the name part of the SpannableStringBuilder to be bold --> first 5 characters
-            sb.setSpan(b, 0, 5, Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+            sb.setSpan(b, 0, agent.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
 
-            if(Speech != null)
+            if(agent.equals("BABBLE"))
+                sysspeech.setText(sb);
+            else
                 Speech.setText(sb);
 
-            //currentView.findViewById(R.id.speech);
-
-            //Log.v("Sp", ((TextView)findViewById(R.id.speech)).toString());
-
-            //Speech.setText(sb);
         }
     }
 
     @Override
-
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -73,48 +84,95 @@ public class MainActivity extends Activity {
         Start = (Button)findViewById(R.id.start_reg);
         Speech = (TextView)findViewById(R.id.speech);
         System = (TextView)findViewById(R.id.system);
+        sysspeech = (TextView)findViewById(R.id.sysspeech);
 
+        // Initializes textToSpeech object.
+        utterance = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if(status != TextToSpeech.ERROR) {
+                    utterance.setLanguage(Locale.UK);
+                    isTTSready = true;
+                    Log.v("TTS", "Initialised.");
+                }
+            }
+        });
 
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
 
         try {
             c = new Client("bruntonross.co.uk");
-            //Log.v("CLIENT", c.toString());
-            //GetResponse gr = new GetResponse(c);
-            //runOnUiThread(new GetResponse(c));
-            //gr.start();
-            //c.sendUtterance("a");
+
         }
         catch(ClientDisconnectedException cde)  {
-            Log.e("No Connection", "Client unable to connect to server.\n" + cde.getMessage());
+            Log.e("BABBLE-app", "No Connection\nClient unable to connect to server.\n" + cde.getMessage());
         }
 
+        //String sysMessage = "";
+
+         Runnable runnable = new Runnable() {
+             private String sysMessage = "";
+             public void run() {
+
+                try {
+                    while(true) {
+                        //Log.v("Threads ","Running");
+                        ClientResponse r = c.getResponse();
+
+                        if(r != null) {
+                            Log.v("BABBLE-app", r.toString());
+                            if(r.toString().substring(11,14).equals("sys")) {
+
+                                if (r.toString().substring(16, r.toString().length() - 2).equals("<rt>")) {
+
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+
+                                        public void run() {
+                                            // TODO Auto-generated method stub
+                                            Log.v("BABBLE-app", "serverMessage" + sysMessage);
+
+                                            ArrayList<String> sysMsg = new ArrayList<String>();
+                                            sysMsg.add(sysMessage);
+
+                                            buildToSpeech(sysMsg, "BABBLE");
+                                            speak(sysMessage);
+                                            sysMessage = "";
+                                        }
+                                    });
+
+                                } else {
+                                    Log.v("BABBLE-app - server r",r.toString());
+                                    sysMessage += " " + r.toString().substring(16, r.toString().length() - 2);
+
+                                }
+                            }
+                        }
+                    }
+                } catch(ClientDisconnectedException e) {
+                    sysspeech.setText(e.getMessage());
+
+                }
+
+            }
+        };
+        Thread thread = new Thread(runnable);
+        thread.start();
 
         currentView = this;
-
-        //aggregated_utterances.clear();
-
-        Log.v("Going", "1");
 
         Start.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.v("BUTTON", "Listening");
+                //Log.v("BUTTON", "Listening");
 
                 System.setText("Initialising");
 
-
+                aggregated_utterances = new ArrayList<String>();
                 babbleRecognizer = SpeechRecognizer.createSpeechRecognizer(currentView);
-                Log.v("Speechrecog", babbleRecognizer.toString());
 
                 RecognitionListener babbleListener = new RecognitionListener() {
-
-                    public void checkNull() {
-                        if(Speech == null)
-                            Log.v("Null", "Is still null");
-
-                    }
 
                     @Override
                     public void onReadyForSpeech(Bundle params) {
@@ -125,7 +183,7 @@ public class MainActivity extends Activity {
                     @Override
                     public void onBeginningOfSpeech() {
                         Log.v("LISTENER", "Speech started");
-
+                        Speech.setText("");
                     }
 
                     @Override
@@ -145,9 +203,13 @@ public class MainActivity extends Activity {
                         babbleRecognizer.stopListening();
                         Log.v("EVENT", "Not listening");
                         System.setText("Speech ended");
+                        try {
+                            c.sendUtterance(" <rt>");
+                        } catch (ClientDisconnectedException e) {
+                            e.printStackTrace();
+                        }
 
                     }
-
 
                     @Override
                     public void onError(int error) {
@@ -176,7 +238,7 @@ public class MainActivity extends Activity {
                             case 6:  errorMsg = "No speech input.";
                                 break;
                         }
-                        Log.v("LISTENER ERROR", errorMsg);
+                        Log.e("BABBLE-app LIST. ERROR", errorMsg);
                         System.setText(errorMsg);
 
                         babbleRecognizer.destroy();
@@ -190,47 +252,49 @@ public class MainActivity extends Activity {
                             confidenceScores += String.valueOf(i) + " ";
                         }
 
-                        Log.v("Results", results.keySet().toString());
-                        Log.v("Results recognition", results.get("results_recognition").toString());
-                        Log.v("Confidence scores", confidenceScores);
+                        Log.v("BABBLE-app - Results", results.keySet().toString());
+                        Log.v("BABBLE-app", " - Results recognition: " + results.get("results_recognition").toString());
+                        Log.v("BABBLE-app", " - Confidence scores: " + confidenceScores);
                         babbleRecognizer.destroy();
                     }
 
                     @Override
                     public void onPartialResults(Bundle partialResults) {
-                        int newCount = 0;
-                        //if(aggregated_utterances != null)   {
-                        newCount = aggregated_utterances.size();
-                        Log.v("Agg", String.valueOf(newCount));
-                        //}
+                        // Disregard empty partial results
+                        if(!partialResults.getStringArrayList("results_recognition").get(0).equals("")) {
+                            int newCount = aggregated_utterances.size();
+                            Log.v("BABBLE-app", "Count:" + String.valueOf(newCount));
 
-                        String[] results =  partialResults.getStringArrayList("results_recognition").get(0).split(" ");
-                        String res_msg = "";
-                        Log.v("Agg", "Agg: " + String.valueOf(newCount) + " Part: " + results.length);
+                            String[] results = partialResults.getStringArrayList("results_recognition").get(0).split(" ");
+                            String res_msg = "";
+                            Log.v("BABBLE-app", "Agg: " + String.valueOf(newCount) + " Part: " + results.length + "\nResults: " + partialResults.getStringArrayList("results_recognition").get(0));
 
-                        for(int i = newCount; i < results.length; i++){
-                            aggregated_utterances.add(results[i]);
-                            res_msg += results[i] + " ";
-                            Log.v("Aggadd", results[i]);
+                            for (int i = newCount; i < results.length; i++) {
+                                aggregated_utterances.add(results[i]);
+
+                                res_msg += results[i] + " ";
+                                Log.v("BABBLE-app", "added word: " + results[i]);
+                            }
+
+                            // If there's anything new to report. (But why if partialresults != null?)
+                            if(!res_msg.equals("")) {
+                                buildToSpeech(aggregated_utterances, "User");
+                                Log.v("BABBLE-app", "Partial results: " + partialResults.keySet().toString());
+                                Log.v("BABBLE-app", "Partres recognition: " + res_msg);
+
+                                try {
+                                    Log.v("BABBLE-app", "utterance sent: " + res_msg);
+                                    c.sendUtterance(res_msg);
+                                } catch (ClientDisconnectedException cde) {
+                                    Log.e("No Connection", "Client unable to connect to server.");
+                                } catch (NullPointerException npe) {
+                                    Log.e("No connection", "Client not initialised.");
+                                }
+                            }
+
+                            Log.v("Unstable text", partialResults.get("android.speech.extra.UNSTABLE_TEXT").toString());
                         }
 
-
-                        //Speech.setText(aggregateUtterances());
-                        buildToSpeech(aggregated_utterances, true);
-                        Log.v("Partial results", partialResults.keySet().toString());
-                        Log.v("Partres recognition", res_msg);
-
-                        try {
-                            c.sendUtterance(res_msg);
-                        }
-                        catch(ClientDisconnectedException cde)  {
-                            Log.e("No Connection", "Client unable to connect to server.");
-                        }
-                        catch(NullPointerException npe) {
-                            Log.e("No connection", "Client not initialised.");
-                        }
-
-                        Log.v("Unstable text", partialResults.get("android.speech.extra.UNSTABLE_TEXT").toString());
                     }
 
                     @Override

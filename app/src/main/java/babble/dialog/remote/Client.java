@@ -1,5 +1,7 @@
 package babble.dialog.remote;
 
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -113,7 +115,7 @@ public class Client {
 		} catch (IOException e) {
 			throw new ClientDisconnectedException("Failed to send utterance: " + e.getMessage());
 		} catch (NullPointerException e)	{
-			throw new ClientDisconnectedException("Failed to send utterance: " + e.getMessage());
+			throw new ClientDisconnectedException("Failed to send utterance (NullPointer): " + e.getMessage());
 		}
 	}
 
@@ -126,6 +128,7 @@ public class Client {
 			if(reader.ready()) {
 				return new ClientResponse(reader.readLine());
 			}else{
+				//Log.v("BABBLE-app", "Response failed");
 				return null;
 			}
 		} catch (IOException e) {

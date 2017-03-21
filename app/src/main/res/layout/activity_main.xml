@@ -23,11 +23,20 @@
         android:paddingTop="10sp"
         android:text=""
         android:textSize="18sp" />
-
+    <TextView
+        android:id="@+id/sysspeech"
+        android:layout_width="wrap_content"
+        android:layout_height="150dp"
+        android:layout_gravity="center"
+        android:width="300sp"
+        android:height="400sp"
+        android:background="@android:color/holo_blue_bright"
+        android:textAlignment="gravity"
+        android:textSize="25sp" />
     <TextView
         android:id="@+id/speech"
         android:layout_width="wrap_content"
-        android:layout_height="338dp"
+        android:layout_height="150dp"
         android:layout_gravity="center"
         android:width="300sp"
         android:height="400sp"
