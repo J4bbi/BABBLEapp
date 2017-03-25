@@ -19,13 +19,13 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.os.StrictMode;
 import android.speech.tts.TextToSpeech;
-import android.support.annotation.RequiresApi;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.style.StyleSpan;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
 
@@ -40,8 +40,9 @@ public class MainActivity extends Activity {
     Client c;
     TextToSpeech utterance;
     private ArrayList<String> aggregated_utterances = new ArrayList<String>();
-    public boolean isTTSready, isTalking = false;
+    public boolean isTTSready, isTalking, noMore = false;
     static final String DOMAIN = "192.168.0.10";
+    static final int TURN_DELAY = 5; // Set to 5 seconds because onResults is particularly slow
 
     // Zhu's delay method to allow for continuous turn taking
     public void delay(int seconds) {
@@ -54,7 +55,12 @@ public class MainActivity extends Activity {
                     @Override
                     public void run() {
                         babbleRecognizer.destroy();
-                        Start.callOnClick();
+
+                        if(!noMore)
+                            Start.callOnClick();
+                        else    {
+                            System.setText("Dialogue ended");
+                            Log.v("BABBLE-app", "No more turns.");
                     }
                 }, milliseconds);
             }
@@ -102,6 +108,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // Prevent screen timeout during run
 
         Start = (Button)findViewById(R.id.start_reg);
         Restart = (Button)findViewById(R.id.restart);
@@ -153,6 +160,7 @@ public class MainActivity extends Activity {
 
                 try {
                     while(c != null && c.isConnected()) {
+
                         final ClientResponse r = c.getResponse();
 
                         if(r != null) {
@@ -184,6 +192,9 @@ public class MainActivity extends Activity {
                                     sysMessage += " " + r.getWord();
 
                                 }
+
+                                if(r.getWord().equals("bye") || r.getWord().equals("look"))
+                                    noMore = true;
                             }
                         }
                     }
@@ -203,11 +214,14 @@ public class MainActivity extends Activity {
             public void onClick(View v) {
                 if(c != null && c.isConnected()) {
                     System.setText("Initialising");
+                    noMore = false;
 
                     aggregated_utterances = new ArrayList<String>();
                     babbleRecognizer = SpeechRecognizer.createSpeechRecognizer(currentView);
 
                     RecognitionListener babbleListener = new RecognitionListener() {
+
+                        private Boolean partialResultsSent = false;
 
                         @Override
                         public void onReadyForSpeech(Bundle params) {
@@ -238,14 +252,6 @@ public class MainActivity extends Activity {
                             babbleRecognizer.stopListening();
                             Log.v("BABBLE-app EVENT", "Not listening");
                             System.setText("Speech ended");
-                            try {
-                                c.sendUtterance(" <rt>");
-                                if(isTalking) {
-                                    delay(4);
-                                }
-                            } catch (ClientDisconnectedException e) {
-                                e.printStackTrace();
-                            }
 
                         }
 
@@ -289,20 +295,56 @@ public class MainActivity extends Activity {
                             System.setText(errorMsg);
 
                             babbleRecognizer.destroy();
+                            //Start.callOnClick();
 
                         }
 
                         @Override
                         public void onResults(Bundle results) {
                             String confidenceScores = "";
-                            for (float i : results.getFloatArray("confidence_scores")) {
-                                confidenceScores += String.valueOf(i) + " ";
+                            Float hiFloat = 0f;
+                            float[] floats = results.getFloatArray("confidence_scores");
+                            int floatIndex = 0;
+
+                            for (int i = 0; i < floats.length; i++) {
+                                confidenceScores += String.valueOf(floats[i]) + " ";
+
+                                if(floats[i] > hiFloat) {
+                                    hiFloat = floats[i];
+                                    floatIndex = i;
+                                }
                             }
+
+                            // If partial results haven't been sent then
+                            // they have to be sent now
+
+                            if(!partialResultsSent) {
+                                String res_msg = results.getStringArrayList("results_recognition").get(floatIndex);
+                                Log.v("BABBLE-app", "onresults sending: " + res_msg);
+                                try {
+                                    c.sendUtterance(res_msg);
+                                }catch (ClientDisconnectedException cde) {
+                                    Log.e("No Connection", "Client unable to connect to server.");
+                                } catch (NullPointerException npe) {
+                                    Log.e("No connection", "Client not initialised.");
+                                }
+                            }
+
+                            // Release turn
+                            try {
+                                c.sendUtterance("<rt>");
+                                if(isTalking) {
+                                    delay(TURN_DELAY);
+                                }
+                            } catch (ClientDisconnectedException e) {
+                                e.printStackTrace();
+                            }
+
+                            babbleRecognizer.destroy();
 
                             Log.v("BABBLE-app - Results", results.keySet().toString());
                             Log.v("BABBLE-app", " - Results recognition: " + results.get("results_recognition").toString());
                             Log.v("BABBLE-app", " - Confidence scores: " + confidenceScores);
-                            babbleRecognizer.destroy();
                         }
 
                         @Override
@@ -330,8 +372,12 @@ public class MainActivity extends Activity {
                                     Log.v("BABBLE-app", "Partres recognition: " + res_msg);
 
                                     try {
+                                        if(!res_msg.equals("I"))
+                                            res_msg = res_msg.toLowerCase();
+
                                         Log.v("BABBLE-app", "utterance sent: " + res_msg);
                                         c.sendUtterance(res_msg);
+                                        partialResultsSent = true;
                                         isTalking = true;
                                     } catch (ClientDisconnectedException cde) {
                                         Log.e("No Connection", "Client unable to connect to server.");
@@ -373,10 +419,12 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
 
-                if(c.isConnected()) {
-                    c = null;
+                if(thread.isAlive())    {
+                    System.setText("Restarting");
+                    thread.interrupt();
                     thread = new Thread(runnable);
-                    thread.start();
+                    Start.callOnClick();
+
                 }
 
             }
