@@ -115,6 +115,7 @@ public class Client {
 	 */
 	public void sendUtterance(String utterance) throws ClientDisconnectedException {
 		try {
+			Log.v("Client", ">>>> " + utterance);
 			writer.write(utterance);
 			writer.newLine();
 			writer.flush();
