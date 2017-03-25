@@ -27,6 +27,7 @@ import javax.net.ssl.SSLSocketFactory;
 public class Client {
 	private BufferedReader reader;
 	private BufferedWriter writer;
+	private Boolean connected;
 
 	/** When run as a standalone Java execution, it will attempt to initiate a console connection with a server
 	 *
@@ -82,6 +83,7 @@ public class Client {
 	 * From here, use sendUtterance and getResponse to communicate with the remote agent.
 	 */
 	public Client(String host, int port) throws ClientDisconnectedException {
+		connected = false;
 		try {
 			SocketFactory factory;
 			if(RemoteSettings.SECURE) {
@@ -93,13 +95,17 @@ public class Client {
 
 			reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
 			writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));
+			connected = true;
 		} catch (UnknownHostException e) {
 			System.err.print("Unknown host: ");
 			System.err.println(host);
+			connected = false;
 			throw new ClientDisconnectedException("Unknown host: "+host);
 		} catch (IOException e) {
 			System.err.print("Failed to set up socket: ");
 			System.err.println(e.getMessage());
+			connected = false;
+			throw new ClientDisconnectedException("IOException: "+e.getMessage());
 		}
 	}
 
@@ -113,8 +119,10 @@ public class Client {
 			writer.newLine();
 			writer.flush();
 		} catch (IOException e) {
+			connected = false;
 			throw new ClientDisconnectedException("Failed to send utterance: " + e.getMessage());
 		} catch (NullPointerException e)	{
+			connected = false;
 			throw new ClientDisconnectedException("Failed to send utterance (NullPointer): " + e.getMessage());
 		}
 	}
@@ -132,10 +140,16 @@ public class Client {
 				return null;
 			}
 		} catch (IOException e) {
+			connected = false;
 			throw new ClientDisconnectedException("Failed to get response: " + e.getMessage());
 		} catch (NullPointerException e)	{
+			connected = false;
 			throw new ClientDisconnectedException("Failed to get response: " + e.getMessage());
 		}
 
+	}
+
+	public boolean isConnected() {
+		return connected;
 	}
 }
