@@ -13,6 +13,7 @@ import android.app.Activity;
 
 import android.content.Intent;
 
+import android.os.Handler;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -31,16 +32,36 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
     private static final int REQUEST_CODE = 1234;
     public Activity currentView;
-    Button Start;
+    Button Start, Restart;
     public TextView Speech, System,sysspeech;
     SpeechRecognizer babbleRecognizer;
+    Thread thread;
     Intent babbleIntent;
     Client c;
     TextToSpeech utterance;
     private ArrayList<String> aggregated_utterances = new ArrayList<String>();
-    public boolean isTTSready = false;
-    static final String DOMAIN = "PUT DOMAIN HERE";
+    public boolean isTTSready, isTalking = false;
+    static final String DOMAIN = "192.168.0.10";
 
+    // Zhu's delay method to allow for continuous turn taking
+    public void delay(int seconds) {
+        final int milliseconds = seconds * 1000;
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                final Handler handler = new Handler();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        babbleRecognizer.destroy();
+                        Start.callOnClick();
+                    }
+                }, milliseconds);
+            }
+        });
+    }
+
+    // Method that calls appropriate TTS method depending on device's API version
     public void speak(String spokenLine) {
         if (isTTSready) {
             if(Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
@@ -51,12 +72,13 @@ public class MainActivity extends Activity {
         }
     }
 
+    // Method to create "pretty" output texts for the TextViews
     public void buildToSpeech(ArrayList<String> content, String agent)    {
         String aggregatedUtterances = "";
 
         for(String str: content){
             if(!str.equals(""))
-                aggregatedUtterances += str + " ";
+                aggregatedUtterances += str.trim() + " ";
         }
 
         if(!aggregatedUtterances.equals("")) {
@@ -68,7 +90,7 @@ public class MainActivity extends Activity {
             // set only the name part of the SpannableStringBuilder to be bold --> first 5 characters
             sb.setSpan(b, 0, agent.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
 
-            if(agent.equals("BABBLE"))
+            if(agent.equals("BABBLE") || agent.equals("ERROR"))
                 sysspeech.setText(sb);
             else
                 Speech.setText(sb);
@@ -77,12 +99,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         Start = (Button)findViewById(R.id.start_reg);
+        Restart = (Button)findViewById(R.id.restart);
         Speech = (TextView)findViewById(R.id.speech);
         System = (TextView)findViewById(R.id.system);
         sysspeech = (TextView)findViewById(R.id.sysspeech);
@@ -99,12 +121,12 @@ public class MainActivity extends Activity {
             }
         });
 
+        // Permissions to run threads on app
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
 
-        //String sysMessage = "";
-
-         Runnable runnable = new Runnable() {
+        // Thread initialisation
+        final Runnable runnable = new Runnable() {
              private String sysMessage = "";
 
              public void postError(final String msg) {
@@ -131,7 +153,6 @@ public class MainActivity extends Activity {
 
                 try {
                     while(c != null && c.isConnected()) {
-                        //Log.v("Threads ","Running");
                         final ClientResponse r = c.getResponse();
 
                         if(r != null) {
@@ -172,7 +193,7 @@ public class MainActivity extends Activity {
 
             }
         };
-        Thread thread = new Thread(runnable);
+        thread = new Thread(runnable);
         thread.start();
 
         currentView = this;
@@ -180,7 +201,6 @@ public class MainActivity extends Activity {
         Start.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                //Log.v("BUTTON", "Listening");
                 if(c != null && c.isConnected()) {
                     System.setText("Initialising");
 
@@ -214,12 +234,15 @@ public class MainActivity extends Activity {
 
                         @Override
                         public void onEndOfSpeech() {
-                            Log.v("LISTENER", "Speech ended.");
+                            Log.v("BABBLE-app LISTENER", "Speech ended.");
                             babbleRecognizer.stopListening();
-                            Log.v("EVENT", "Not listening");
+                            Log.v("BABBLE-app EVENT", "Not listening");
                             System.setText("Speech ended");
                             try {
                                 c.sendUtterance(" <rt>");
+                                if(isTalking) {
+                                    delay(4);
+                                }
                             } catch (ClientDisconnectedException e) {
                                 e.printStackTrace();
                             }
@@ -309,6 +332,7 @@ public class MainActivity extends Activity {
                                     try {
                                         Log.v("BABBLE-app", "utterance sent: " + res_msg);
                                         c.sendUtterance(res_msg);
+                                        isTalking = true;
                                     } catch (ClientDisconnectedException cde) {
                                         Log.e("No Connection", "Client unable to connect to server.");
                                     } catch (NullPointerException npe) {
@@ -345,6 +369,19 @@ public class MainActivity extends Activity {
 
         });
 
+        Restart.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                if(c.isConnected()) {
+                    c = null;
+                    thread = new Thread(runnable);
+                    thread.start();
+                }
+
+            }
+
+        });
     }
 
 }
