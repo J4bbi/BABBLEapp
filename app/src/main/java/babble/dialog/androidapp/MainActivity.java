@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
                         else    {
                             System.setText("Dialogue ended");
                             Log.v("BABBLE-app", "No more turns.");
+                        }
                     }
                 }, milliseconds);
             }
