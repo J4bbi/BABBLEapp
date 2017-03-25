@@ -132,13 +132,13 @@ public class MainActivity extends Activity {
                 try {
                     while(c != null && c.isConnected()) {
                         //Log.v("Threads ","Running");
-                        ClientResponse r = c.getResponse();
+                        final ClientResponse r = c.getResponse();
 
                         if(r != null) {
                             Log.v("BABBLE-app", r.toString());
                             if(r.getSpeaker().equals("sys")) {
 
-                                if (r.getWord().equals("<rt>")) {
+                                if (r.getWord().equals("<rt>") || r.getWord().equals("bye")) {
 
                                     runOnUiThread(new Runnable() {
                                         @Override
@@ -149,6 +149,8 @@ public class MainActivity extends Activity {
 
                                             ArrayList<String> sysMsg = new ArrayList<String>();
                                             sysMsg.add(sysMessage);
+
+                                            if(r.getWord().equals("bye")) sysMsg.add("bye");
 
                                             buildToSpeech(sysMsg, "BABBLE");
                                             speak(sysMessage);
