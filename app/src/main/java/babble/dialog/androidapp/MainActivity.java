@@ -373,11 +373,15 @@ public class MainActivity extends Activity {
                                     Log.v("BABBLE-app", "Partres recognition: " + res_msg);
 
                                     try {
-                                        if(!res_msg.equals("I"))
-                                            res_msg = res_msg.toLowerCase();
+                                        for(String msg : res_msg.split(" ")) {
+                                            if (msg.equals("")) continue;
 
-                                        Log.v("BABBLE-app", "utterance sent: " + res_msg);
-                                        c.sendUtterance(res_msg);
+                                            if (!msg.trim().equals("I"))
+                                                msg = msg.toLowerCase();
+
+                                            Log.v("BABBLE-app", "utterance sent: " + msg);
+                                            c.sendUtterance(msg);
+                                        }
                                         partialResultsSent = true;
                                         isTalking = true;
                                     } catch (ClientDisconnectedException cde) {
