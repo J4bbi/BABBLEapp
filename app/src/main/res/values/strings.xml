@@ -2,5 +2,5 @@
     <string name="app_name">BABBLE app</string>
     <string name="babble">BABBLE</string>
     <string name="start">Speak</string>
-    <string name="restart">Restart</string>
+    <string name="restart">Reset</string>
 </resources>
