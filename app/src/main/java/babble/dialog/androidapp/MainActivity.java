@@ -33,15 +33,16 @@ public class MainActivity extends Activity {
     private static final int REQUEST_CODE = 1234;
     public Activity currentView;
     Button Start, Restart;
-    public TextView Speech, System,sysspeech;
+    public TextView Speech, System, sysspeech;
     SpeechRecognizer babbleRecognizer;
     Thread thread;
     Intent babbleIntent;
     Client c;
     TextToSpeech utterance;
+    Runnable runnable;
     private ArrayList<String> aggregated_utterances = new ArrayList<String>();
     public boolean isTTSready, isTalking, noMore = false;
-    static final String DOMAIN = "192.168.0.10";
+    static final String DOMAIN = "192.168.1.42"; //192.168.44.212";//192.168.0.10";
     static final int TURN_DELAY = 5; // Set to 5 seconds because onResults is particularly slow
 
     // Zhu's delay method to allow for continuous turn taking
@@ -58,9 +59,10 @@ public class MainActivity extends Activity {
 
                         if(!noMore)
                             Start.callOnClick();
-                        else    {
+                        else {
                             System.setText("Dialogue ended");
                             Log.v("BABBLE-app", "No more turns.");
+                        }
                     }
                 }, milliseconds);
             }
@@ -104,59 +106,31 @@ public class MainActivity extends Activity {
         }
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // Prevent screen timeout during run
+    private Runnable getRunnable()  {
+        return new Runnable() {
+            private String sysMessage = "";
 
-        Start = (Button)findViewById(R.id.start_reg);
-        Restart = (Button)findViewById(R.id.restart);
-        Speech = (TextView)findViewById(R.id.speech);
-        System = (TextView)findViewById(R.id.system);
-        sysspeech = (TextView)findViewById(R.id.sysspeech);
+            public void postError(final String msg) {
+                runOnUiThread(new Runnable() {
+                    @Override
 
-        // Initializes textToSpeech object.
-        utterance = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
-            @Override
-            public void onInit(int status) {
-                if(status != TextToSpeech.ERROR) {
-                    utterance.setLanguage(Locale.UK);
-                    isTTSready = true;
-                    Log.v("TTS", "Initialised.");
-                }
+                    public void run() {
+                        ArrayList<String> al = new ArrayList<String>(1);
+                        al.add(msg);
+                        buildToSpeech(al, "ERROR");
+                    }
+                });
             }
-        });
 
-        // Permissions to run threads on app
-        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-        StrictMode.setThreadPolicy(policy);
+            public void run() {
+                try {
+                    c = new Client(DOMAIN);
 
-        // Thread initialisation
-        final Runnable runnable = new Runnable() {
-             private String sysMessage = "";
-
-             public void postError(final String msg) {
-                 runOnUiThread(new Runnable() {
-                     @Override
-
-                     public void run() {
-                         ArrayList<String> al = new ArrayList<String>(1);
-                         al.add(msg);
-                         buildToSpeech(al, "ERROR");
-                     }
-                 });
-             }
-
-             public void run() {
-                 try {
-                     c = new Client(DOMAIN);
-
-                 }
-                 catch(ClientDisconnectedException cde)  {
-                     Log.e("BABBLE-app", "No Connection\nClient unable to connect to server.\n" + cde.getMessage());
-                     postError(cde.getMessage());
-                 }
+                }
+                catch(ClientDisconnectedException cde)  {
+                    Log.e("BABBLE-app", "No Connection\nClient unable to connect to server.\n" + cde.getMessage());
+                    postError(cde.getMessage());
+                }
 
                 try {
                     while(c != null && c.isConnected()) {
@@ -199,11 +173,43 @@ public class MainActivity extends Activity {
                         }
                     }
                 } catch(ClientDisconnectedException e) {
-                   postError(e.getMessage());
+                    postError(e.getMessage());
                 }
 
             }
         };
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // Prevent screen timeout during run
+
+        Start = (Button)findViewById(R.id.start_reg);
+        Restart = (Button)findViewById(R.id.restart);
+        Speech = (TextView)findViewById(R.id.speech);
+        System = (TextView)findViewById(R.id.system);
+        sysspeech = (TextView)findViewById(R.id.sysspeech);
+
+        // Initializes textToSpeech object.
+        utterance = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if(status != TextToSpeech.ERROR) {
+                    utterance.setLanguage(Locale.UK);
+                    isTTSready = true;
+                    Log.v("TTS", "Initialised.");
+                }
+            }
+        });
+
+        // Permissions to run threads on app
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        StrictMode.setThreadPolicy(policy);
+
+        // Thread initialisation
+        runnable = getRunnable();
         thread = new Thread(runnable);
         thread.start();
 
@@ -333,9 +339,9 @@ public class MainActivity extends Activity {
                             // Release turn
                             try {
                                 c.sendUtterance("<rt>");
-                                if(isTalking) {
+                                /*if(isTalking) {
                                     delay(TURN_DELAY);
-                                }
+                                }*/
                             } catch (ClientDisconnectedException e) {
                                 e.printStackTrace();
                             }
@@ -418,13 +424,25 @@ public class MainActivity extends Activity {
         Restart.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-
-                if(thread.isAlive())    {
+                // No use resetting if the thread isn't running
+                if(thread.isAlive()) {
+                    // Notifying user of restart
                     System.setText("Restarting");
+                    // Destroying client
+                    c = null;
+                    // Kill thread
                     thread.interrupt();
+                    thread = null;
+                    // Re-instantiate runnable (includes new connection)
+                    runnable = getRunnable();
+                    // Re-instantiate thread with runnable
                     thread = new Thread(runnable);
-                    Start.callOnClick();
-
+                    // Empty textboxes of earlier dialogue
+                    sysspeech.setText("");
+                    Speech.setText("");
+                    // Start new thread
+                    thread.start();
+                    System.setText("");
                 }
 
             }
