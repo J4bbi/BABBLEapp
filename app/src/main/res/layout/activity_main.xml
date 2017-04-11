@@ -23,6 +23,7 @@
         android:paddingTop="10sp"
         android:text=""
         android:textSize="18sp" />
+
     <TextView
         android:id="@+id/sysspeech"
         android:layout_width="wrap_content"
@@ -45,17 +46,17 @@
         android:textSize="25sp" />
 
     <Button
-        android:id="@+id/start_reg"
+        android:id="@+id/speak"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="@string/start" />
+        android:text="@string/speak" />
 
     <Button
-        android:id="@+id/restart"
+        android:id="@+id/reset"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="@string/restart" />
+        android:text="@string/reset" />
 
 </LinearLayout>
