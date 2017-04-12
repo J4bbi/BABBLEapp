@@ -28,6 +28,7 @@ public class Client {
 	private BufferedReader reader;
 	private BufferedWriter writer;
 	private Boolean connected;
+	private Socket socket;
 
 	/** When run as a standalone Java execution, it will attempt to initiate a console connection with a server
 	 *
@@ -91,10 +92,10 @@ public class Client {
 			}else{
 				factory = SocketFactory.getDefault();
 			}
-			Socket sock = factory.createSocket(host, port);
+			socket = factory.createSocket(host, port);
 
-			reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-			writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));
+			reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+			writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 			connected = true;
 		} catch (UnknownHostException e) {
 			System.err.print("Unknown host: ");
@@ -154,4 +155,13 @@ public class Client {
 		return connected;
 	}
 
+	public void close() {
+		try {
+			reader.close();
+			writer.close();
+			socket.close();
+		} catch (IOException e) {
+			// Pass
+		}
+	}
 }

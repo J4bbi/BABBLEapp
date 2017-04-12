@@ -336,7 +336,7 @@ public class MainActivity extends Activity {
 
                     }
 
-                    Log.v("Unstable text", partialResults.get("android.speech.extra.UNSTABLE_TEXT").toString());
+                    Log.v("BABBLE-app", "Unstable text: " + partialResults.get("android.speech.extra.UNSTABLE_TEXT").toString());
                 }
 
             }
@@ -435,6 +435,8 @@ public class MainActivity extends Activity {
                 if(clientThread.isAlive()) {
                     // Notifying user of restart
                     System.setText("Restarting");
+                    // Close connection
+                    c.close();
                     // Destroying client
                     c = null;
                     // Kill thread
@@ -450,11 +452,11 @@ public class MainActivity extends Activity {
                     // Start new thread
                     clientThread.start();
                     System.setText("Ready");
+
                 }
 
             }
 
         });
     }
-
 }
