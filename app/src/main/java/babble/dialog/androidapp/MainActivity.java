@@ -392,37 +392,35 @@ public class MainActivity extends Activity {
         speak.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Provide that a connection has been made
-                if(c != null && c.isConnected()) {
-                    // Tell user we are initialising
-                    System.setText("Initialising");
-                    // Array list to accumulate utterance
-                    aggregated_utterances = new ArrayList<String>();
-                    // Initialise SpeechRecognizer object
-                    babbleRecognizer = SpeechRecognizer.createSpeechRecognizer(currentView);
-                    // Initialise RecognitionListener
-                    RecognitionListener babbleListener = getBABBLEListener();
-                    Log.v("Listener", babbleListener.toString());
-                    // Assign listener to speechrecognizer
-                    babbleRecognizer.setRecognitionListener(babbleListener);
+            // Provide that a connection has been made
+            if(c != null && c.isConnected()) {
+                // Tell user we are initialising
+                System.setText("Initialising");
+                // Array list to accumulate utterance
+                aggregated_utterances = new ArrayList<String>();
+                // Initialise SpeechRecognizer object
+                babbleRecognizer = SpeechRecognizer.createSpeechRecognizer(currentView);
+                // Initialise RecognitionListener
+                RecognitionListener babbleListener = getBABBLEListener();
+                Log.v("Listener", babbleListener.toString());
+                // Assign listener to speechrecognizer
+                babbleRecognizer.setRecognitionListener(babbleListener);
 
-                    // Constants from https://developer.android.com/reference/android/speech/RecognizerIntent.html
-                    // Starts an activity that will prompt the user for speech and send it through a speech recognizer.
-                    Intent babbleIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                    // Informs the recognizer which speech model to prefer when performing ACTION_RECOGNIZE_SPEECH.
-                    // Use a language model based on free-form speech recognition.
-                    babbleIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                    // A float array of confidence scores of the recognition results when performing ACTION_RECOGNIZE_SPEECH.
-                    babbleIntent.putExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES, true);
-                    // Optional boolean to indicate whether partial results should be returned by the recognizer as the user speaks (default is false).
-                    // This allows for incrementality!
-                    babbleIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+                // Constants from https://developer.android.com/reference/android/speech/RecognizerIntent.html
+                // Starts an activity that will prompt the user for speech and send it through a speech recognizer.
+                Intent babbleIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                // Informs the recognizer which speech model to prefer when performing ACTION_RECOGNIZE_SPEECH.
+                // Use a language model based on free-form speech recognition.
+                babbleIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                // A float array of confidence scores of the recognition results when performing ACTION_RECOGNIZE_SPEECH.
+                babbleIntent.putExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES, true);
+                // Optional boolean to indicate whether partial results should be returned by the recognizer as the user speaks (default is false).
+                // This allows for incrementality!
+                babbleIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
 
-                    babbleRecognizer.startListening(babbleIntent);
-                }
-
-
+                babbleRecognizer.startListening(babbleIntent);
+            }
             }
 
         });
